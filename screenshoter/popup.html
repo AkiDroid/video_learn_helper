@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Screenshoter</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="panel">
+      <section class="card">
+        <p class="eyebrow">文件名</p>
+        <div class="filename-row">
+          <strong id="current-filename" class="filename">01.png</strong>
+          <button id="reset-index" class="secondary-button" type="button">重置到 01</button>
+        </div>
+        <p class="hint">每次截图成功后会自动递增。</p>
+      </section>
+
+      <section class="card">
+        <p class="eyebrow">快捷键</p>
+        <div class="shortcut-box">
+          <span id="shortcut-text" class="shortcut-text">Alt + Shift + S</span>
+          <button id="record-shortcut" class="primary-button" type="button">录制快捷键</button>
+        </div>
+        <p id="shortcut-tip" class="hint">建议至少带一个修饰键，避免误触。</p>
+      </section>
+
+      <section class="card actions">
+        <button id="capture-now" class="primary-button wide" type="button">立即截图</button>
+        <p id="status" class="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script src="common.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
