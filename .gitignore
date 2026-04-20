@@ -11,3 +11,7 @@ yarn-error.log*
 pnpm-debug.log*
 
 image_to_pdf/tmp_verify_images/
+
+temp/
+
+.env

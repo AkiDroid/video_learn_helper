@@ -1,0 +1,15 @@
+{
+  "name": "transcript-translator",
+  "version": "1.0.0",
+  "description": "Translate English subtitle files into Simplified Chinese with LLM APIs.",
+  "main": "index.js",
+  "type": "commonjs",
+  "bin": {
+    "transcript-translator": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js",
+    "check": "node --check index.js && node --check src/cli.js && node --check src/chunker.js && node --check src/config.js && node --check src/constants.js && node --check src/env.js && node --check src/subtitles.js && node --check src/translator.js && node --check src/providers/index.js && node --check src/providers/openai-compatible.js",
+    "test": "node --test"
+  }
+}
