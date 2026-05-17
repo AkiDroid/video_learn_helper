@@ -8,6 +8,7 @@
   };
 
   const DEFAULT_SETTINGS = {
+    filenamePrefix: "",
     nextIndex: 1,
     shortcut: DEFAULT_SHORTCUT,
   };
@@ -31,8 +32,17 @@
     return String(Math.max(1, Number(index) || 1)).padStart(2, "0");
   }
 
-  function formatFilename(index) {
-    return `${formatIndex(index)}.png`;
+  function normalizeFilenamePrefix(prefix) {
+    if (typeof prefix !== "string") {
+      return "";
+    }
+    return prefix.trim().replace(/[\\/:*?"<>|]+/g, "-");
+  }
+
+  function formatFilename(index, prefix = "") {
+    const filename = `${formatIndex(index)}.png`;
+    const normalizedPrefix = normalizeFilenamePrefix(prefix);
+    return normalizedPrefix ? `${normalizedPrefix}_${filename}` : filename;
   }
 
   async function getSettings() {
@@ -43,12 +53,21 @@
   async function setSettings(patch) {
     const current = await getSettings();
     const next = normalizeSettings({ ...current, ...patch });
-    await chrome.storage.local.set(next);
+    const normalizedPatch = {};
+
+    for (const key of Object.keys(patch || {})) {
+      if (Object.prototype.hasOwnProperty.call(next, key)) {
+        normalizedPatch[key] = next[key];
+      }
+    }
+
+    await chrome.storage.local.set(normalizedPatch);
     return next;
   }
 
   function normalizeSettings(raw) {
     return {
+      filenamePrefix: normalizeFilenamePrefix(raw?.filenamePrefix),
       nextIndex: Math.max(1, Number(raw?.nextIndex) || DEFAULT_SETTINGS.nextIndex),
       shortcut: normalizeShortcut(raw?.shortcut),
     };
@@ -173,6 +192,7 @@
     hasModifier,
     isModifierCode,
     isValidShortcut,
+    normalizeFilenamePrefix,
     normalizeSettings,
     normalizeShortcut,
     setSettings,

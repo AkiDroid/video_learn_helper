@@ -73,6 +73,32 @@ body {
   font-weight: 600;
 }
 
+.prefix-field {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.prefix-field input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  padding: 0 10px;
+}
+
+.prefix-field input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
 .hint,
 .status {
   margin: 10px 0 0;

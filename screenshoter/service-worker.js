@@ -3,6 +3,7 @@ importScripts("common.js");
 const { formatFilename, getSettings, setSettings } = globalThis.VideoShotCommon;
 
 let saveQueue = Promise.resolve();
+const pendingFilenamePrefixes = new Map();
 
 chrome.runtime.onInstalled.addListener(async () => {
   const current = await getSettings();
@@ -25,11 +26,11 @@ async function handleMessage(message, sender) {
     case "CAPTURE_VISIBLE_TAB":
       return captureVisibleTab();
     case "SAVE_CAPTURE_DATA_URL":
-      return enqueueSave(message?.dataUrl);
+      return enqueueSave(message?.dataUrl, message?.filenamePrefix, sender?.tab?.id);
     case "TRIGGER_CAPTURE_ON_ACTIVE_TAB":
-      return triggerCaptureOnActiveTab();
+      return triggerCaptureOnActiveTab(message?.filenamePrefix);
     case "TRIGGER_CAPTURE_ANY_FRAME":
-      return triggerCaptureAcrossFrames(sender?.tab?.id);
+      return triggerCaptureAcrossFrames(sender?.tab?.id, message?.filenamePrefix);
     case "PING":
       return { ok: true, frameId: sender?.frameId ?? 0 };
     default:
@@ -44,14 +45,19 @@ async function captureVisibleTab() {
   return { ok: true, dataUrl };
 }
 
-function enqueueSave(dataUrl) {
+function enqueueSave(dataUrl, explicitFilenamePrefix, tabId) {
   if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:image/")) {
     return Promise.resolve({ ok: false, error: "Invalid image data" });
   }
 
   const currentTask = saveQueue.then(async () => {
     const settings = await getSettings();
-    const filename = formatFilename(settings.nextIndex);
+    const pendingFilenamePrefix = getPendingFilenamePrefix(tabId);
+    const filenamePrefix =
+      typeof explicitFilenamePrefix === "string"
+        ? explicitFilenamePrefix
+        : pendingFilenamePrefix ?? settings.filenamePrefix;
+    const filename = formatFilename(settings.nextIndex, filenamePrefix);
 
     await chrome.downloads.download({
       url: dataUrl,
@@ -68,7 +74,7 @@ function enqueueSave(dataUrl) {
   return currentTask;
 }
 
-async function triggerCaptureOnActiveTab() {
+async function triggerCaptureOnActiveTab(filenamePrefix) {
   const [activeTab] = await chrome.tabs.query({
     active: true,
     currentWindow: true,
@@ -78,13 +84,15 @@ async function triggerCaptureOnActiveTab() {
     return { ok: false, error: "No active tab found" };
   }
 
-  return triggerCaptureAcrossFrames(activeTab.id);
+  return triggerCaptureAcrossFrames(activeTab.id, filenamePrefix);
 }
 
-async function triggerCaptureAcrossFrames(tabId) {
+async function triggerCaptureAcrossFrames(tabId, filenamePrefix) {
   if (!tabId) {
     return { ok: false, error: "No tab found" };
   }
+
+  setPendingFilenamePrefix(tabId, filenamePrefix);
 
   const frameIds = await getFrameIds(tabId);
   let bestFrameId = null;
@@ -113,7 +121,7 @@ async function triggerCaptureAcrossFrames(tabId) {
   try {
     const response = await chrome.tabs.sendMessage(
       tabId,
-      { type: "TRIGGER_CAPTURE" },
+      { type: "TRIGGER_CAPTURE", filenamePrefix },
       { frameId: bestFrameId }
     );
     return response || { ok: false, error: "No response from target frame" };
@@ -129,4 +137,20 @@ async function getFrameIds(tabId) {
   } catch (_error) {
     return [0];
   }
+}
+
+function setPendingFilenamePrefix(tabId, filenamePrefix) {
+  if (!tabId || typeof filenamePrefix !== "string") {
+    return;
+  }
+  pendingFilenamePrefixes.set(tabId, filenamePrefix);
+}
+
+function getPendingFilenamePrefix(tabId) {
+  if (!tabId || !pendingFilenamePrefixes.has(tabId)) {
+    return null;
+  }
+  const filenamePrefix = pendingFilenamePrefixes.get(tabId);
+  pendingFilenamePrefixes.delete(tabId);
+  return filenamePrefix;
 }

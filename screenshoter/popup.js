@@ -5,11 +5,13 @@
     getSettings,
     isModifierCode,
     isValidShortcut,
+    normalizeFilenamePrefix,
     setSettings,
     shortcutToString,
   } = globalThis.VideoShotCommon;
 
   const currentFilename = document.getElementById("current-filename");
+  const filenamePrefixInput = document.getElementById("filename-prefix");
   const shortcutText = document.getElementById("shortcut-text");
   const shortcutTip = document.getElementById("shortcut-tip");
   const status = document.getElementById("status");
@@ -19,6 +21,8 @@
 
   let settings = null;
   let recording = false;
+  let prefixSaveQueue = Promise.resolve();
+  let prefixSaveVersion = 0;
 
   init().catch((error) => {
     setStatus(error.message || "初始化失败", "error");
@@ -29,6 +33,8 @@
     render();
 
     resetIndexButton.addEventListener("click", resetIndex);
+    filenamePrefixInput.addEventListener("input", saveFilenamePrefix);
+    filenamePrefixInput.addEventListener("blur", renderFilename);
     recordShortcutButton.addEventListener("click", toggleRecording);
     captureNowButton.addEventListener("click", captureNow);
     window.addEventListener("keydown", onRecordKeydown, true);
@@ -38,7 +44,25 @@
   async function resetIndex() {
     settings = await setSettings({ nextIndex: 1 });
     render();
-    setStatus("文件名已重置为 01.png", "success");
+    setStatus(`文件名已重置为 ${formatFilename(1, settings.filenamePrefix)}`, "success");
+  }
+
+  function saveFilenamePrefix() {
+    const filenamePrefix = normalizeFilenamePrefix(filenamePrefixInput.value);
+    const saveVersion = ++prefixSaveVersion;
+    settings = { ...settings, filenamePrefix };
+    renderFilename();
+
+    prefixSaveQueue = prefixSaveQueue
+      .catch(() => {})
+      .then(() => chrome.storage.local.set({ filenamePrefix }))
+      .then(() => getSettings())
+      .then((nextSettings) => {
+        if (saveVersion === prefixSaveVersion) {
+          settings = nextSettings;
+          renderFilename();
+        }
+      });
   }
 
   function toggleRecording() {
@@ -77,9 +101,11 @@
   }
 
   async function captureNow() {
+    await flushFilenamePrefix();
     setStatus("正在尝试截图...", "info");
     const result = await chrome.runtime.sendMessage({
       type: "TRIGGER_CAPTURE_ON_ACTIVE_TAB",
+      filenamePrefix: settings.filenamePrefix,
     });
 
     if (result?.ok) {
@@ -96,7 +122,7 @@
     if (areaName !== "local") {
       return;
     }
-    if (changes.nextIndex || changes.shortcut) {
+    if (changes.filenamePrefix || changes.nextIndex || changes.shortcut) {
       settings = await getSettings();
       render();
     }
@@ -106,8 +132,34 @@
     if (!settings) {
       return;
     }
-    currentFilename.textContent = formatFilename(settings.nextIndex);
+    renderFilename();
     shortcutText.textContent = shortcutToString(settings.shortcut);
+  }
+
+  function renderFilename() {
+    currentFilename.textContent = formatFilename(settings.nextIndex, settings.filenamePrefix);
+    if (document.activeElement !== filenamePrefixInput) {
+      filenamePrefixInput.value = settings.filenamePrefix;
+    }
+  }
+
+  async function flushFilenamePrefix() {
+    const filenamePrefix = normalizeFilenamePrefix(filenamePrefixInput.value);
+    if (filenamePrefix !== settings.filenamePrefix) {
+      settings = { ...settings, filenamePrefix };
+      renderFilename();
+      prefixSaveVersion += 1;
+      prefixSaveQueue = prefixSaveQueue
+        .catch(() => {})
+        .then(() => chrome.storage.local.set({ filenamePrefix }))
+        .then(() => getSettings())
+        .then((nextSettings) => {
+          settings = nextSettings;
+          renderFilename();
+        });
+    }
+
+    await prefixSaveQueue;
   }
 
   function setStatus(message, kind) {

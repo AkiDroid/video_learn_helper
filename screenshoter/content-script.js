@@ -29,7 +29,7 @@
     if (areaName !== "local") {
       return;
     }
-    if (changes.nextIndex || changes.shortcut) {
+    if (changes.filenamePrefix || changes.nextIndex || changes.shortcut) {
       getSettings()
         .then((nextSettings) => {
           settings = nextSettings;
@@ -53,6 +53,7 @@
     event.stopPropagation();
     const result = await chrome.runtime.sendMessage({
       type: "TRIGGER_CAPTURE_ANY_FRAME",
+      filenamePrefix: settings.filenamePrefix,
     });
     if (!result?.ok) {
       showToast(result?.error || "截图失败", "error");
@@ -61,7 +62,7 @@
 
   function onRuntimeMessage(message, _sender, sendResponse) {
     if (message?.type === "TRIGGER_CAPTURE") {
-      triggerCapture()
+      triggerCapture(message.filenamePrefix)
         .then((result) => sendResponse(result))
         .catch((error) =>
           sendResponse({ ok: false, error: error.message || "Screenshot failed" })
@@ -107,7 +108,7 @@
     }
   }
 
-  async function triggerCapture() {
+  async function triggerCapture(filenamePrefix = settings?.filenamePrefix) {
     if (captureInFlight) {
       return { ok: false, error: "Screenshot already running" };
     }
@@ -129,6 +130,7 @@
         const saved = await chrome.runtime.sendMessage({
           type: "SAVE_CAPTURE_DATA_URL",
           dataUrl,
+          filenamePrefix,
         });
 
         if (!saved?.ok) {
@@ -170,6 +172,7 @@
       const saved = await chrome.runtime.sendMessage({
         type: "SAVE_CAPTURE_DATA_URL",
         dataUrl: fallbackDataUrl,
+        filenamePrefix,
       });
 
       if (!saved?.ok) {
